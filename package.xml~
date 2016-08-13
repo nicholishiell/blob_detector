@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package>
+  <name>blob_detector</name>
+  <version>0.0.0</version>
+  <description>This node will use the raspberry pi camera and openCV to extract blobs from pictures.</description>
+ 
+  <maintainer email="nicholishiell@gmail.com">Nicholi Shiell</maintainer>
+  <author>Nicholi Shiell</author>
+  <license>FREE</license>
+  <url>http://bots.cs.mun.ca/</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <run_depend>roscpp</run_depend>
+</package>

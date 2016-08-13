@@ -1,0 +1,156 @@
+#include "ros/ros.h"
+#include "std_msgs/Float64MultiArray.h"
+#include "std_msgs/Float64.h"
+#include "opencv2/opencv.hpp"
+#include <raspicam/raspicam_cv.h>
+#include <raspicam/raspicam.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <sstream>
+
+using namespace std;
+using namespace cv;
+
+float currentHeading = 0.;
+
+void CurrentHeadingCallback(const std_msgs::Float64::ConstPtr& msg){
+  currentHeading = msg->data;
+}
+
+int main(int argc, char **argv){
+  float centerX = 0.;
+  float centerY = 0.;
+
+  ros::init(argc, argv, "basic_float_publisher");
+  ros::NodeHandle n;
+  ros::Rate loop_rate(10);
+  ros::Publisher float_pub = n.advertise<std_msgs::Float64MultiArray>("blobBearings", 1000);
+
+  ros::Subscriber currentHeadingSub = n.subscribe("currentHeading", 1000, CurrentHeadingCallback);
+
+  raspicam::RaspiCam_Cv camera;
+  cv::Mat rawImage;
+  cv::Mat blueImage;
+  cv::Mat keyPointsImage;
+  cv::Mat calibImage;
+  SimpleBlobDetector::Params paramsCalib;
+  paramsCalib.minThreshold = 10;
+  paramsCalib.maxThreshold = 255;
+  paramsCalib.minDistBetweenBlobs = 50.0f;
+  paramsCalib.filterByInertia = false;
+  paramsCalib.filterByConvexity = true;
+  paramsCalib.minConvexity = 0.75;
+  paramsCalib.maxConvexity = 1.0;
+  paramsCalib.filterByColor = false;
+  paramsCalib.filterByCircularity = false;
+  paramsCalib.minCircularity = 0.785;
+  paramsCalib.maxCircularity = 1.;
+  paramsCalib.filterByArea = true;
+  paramsCalib.minArea = 5000.0f;
+  paramsCalib.maxArea = 100000.0f;
+  SimpleBlobDetector detectorCalib(paramsCalib);
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Used to find center of ROI and by extension forward direction
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  camera.set( CV_CAP_PROP_FORMAT, CV_8UC3 ); // Set image format
+  camera.set( CV_CAP_PROP_EXPOSURE, 100); // Set shutter speed (1.3 for calib) 
+  if ( !camera.open()) printf("Error opening camera\n");
+    
+  camera.grab();
+  camera.retrieve(rawImage);
+  
+  // Create binary mask of blue regions and store it in blueImage
+  inRange(rawImage, cv::Scalar(0,0,0), cv::Scalar(5,5,5), calibImage);
+
+  std::vector<KeyPoint> calibKeyPoints;
+  detectorCalib.detect( calibImage, calibKeyPoints);
+      
+  drawKeypoints( calibImage, calibKeyPoints, keyPointsImage, Scalar(0,0,255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
+      
+  cv::imwrite("calib.jpg", keyPointsImage);
+  cv::imwrite("raw.jpg", rawImage);
+  //for(int i = 0; i < calibKeyPoints.size(); i++)
+  //  printf("Center: (%f, %f)", calibKeyPoints[i].pt.x, calibKeyPoints[i].pt.y);
+  centerX = calibKeyPoints[0].pt.x;
+  centerY = calibKeyPoints[0].pt.y;
+
+  camera.release();
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  
+  // Get ready for robot beacon detection
+  camera.set( CV_CAP_PROP_EXPOSURE, 0.3); // Set shutter speed (0.3 for robot beacons)
+  if ( !camera.open()) printf("Error opening camera\n");
+  bool keepGoing = true;
+  int imageCounter = 0;
+ 
+  SimpleBlobDetector::Params paramsRobotBeacon;
+  paramsRobotBeacon.minThreshold = 10;
+  paramsRobotBeacon.maxThreshold = 255;
+  paramsRobotBeacon.minDistBetweenBlobs = 50.0f;
+  paramsRobotBeacon.filterByInertia = false;
+  paramsRobotBeacon.filterByConvexity = false;
+  paramsRobotBeacon.minConvexity = 0.75;
+  paramsRobotBeacon.maxConvexity = 1.0;
+  paramsRobotBeacon.filterByColor = false;
+  paramsRobotBeacon.filterByCircularity = false;
+  paramsRobotBeacon.filterByArea = true;
+  paramsRobotBeacon.minArea = 10.0f;
+  paramsRobotBeacon.maxArea = 100000.0f;
+  SimpleBlobDetector detectorRobotBeacon(paramsRobotBeacon);
+  
+  while (ros::ok() and keepGoing){
+    
+    camera.grab();
+    camera.retrieve(rawImage);
+    
+    // Create binary mask of blue regions and store it in blueImage
+    inRange(rawImage, cv::Scalar(30,0,0), cv::Scalar(255,128,128), blueImage);
+    
+    // Detect blobs in blueImage
+    std::vector<KeyPoint> keypoints;
+    detectorRobotBeacon.detect( blueImage, keypoints);
+    
+    std_msgs::Float64MultiArray msg;     
+    
+    msg.data.resize(keypoints.size()); 
+
+    for(int i = 0; i < keypoints.size(); i++){
+      float blobX =  keypoints[i].pt.x;
+      float blobY = keypoints[i].pt.y; 
+      
+      float blobBearingLocal = atan2(blobY - centerY, blobX - centerX); 
+      float blobBearingGlobal = blobBearingLocal*180./M_PI + currentHeading;
+      if(blobBearingGlobal < -180.) blobBearingGlobal += 360.;
+      if(blobBearingGlobal > 180.) blobBearingGlobal -= 360.;
+         
+      msg.data[i] = blobBearingGlobal;
+      
+      
+      //printf("(%f,%f)\t%g\n", blobX, blobY, blobBearing*180./M_PI - currentHeading);
+    }
+    float_pub.publish(msg);
+    //printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    
+    /*ostringstream filenameRaw;
+    ostringstream filenameBlue; 
+    drawKeypoints( blueImage, keypoints, keyPointsImage, Scalar(0,0,255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
+    filenameBlue << "blue"<<imageCounter <<".jpg";
+    //cv::imwrite(filenameBlue.str(),blueImage);
+    cv::imwrite(filenameBlue.str(), keyPointsImage);
+    
+    filenameRaw << "raw"<<imageCounter++ <<".jpg";
+    cv::imwrite(filenameRaw.str(),rawImage);
+ 
+    getchar();*/
+    
+    ros::spinOnce();
+    
+    loop_rate.sleep();
+  }
+
+  camera.release();
+  
+  return 0;
+}
