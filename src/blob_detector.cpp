@@ -40,17 +40,17 @@ int main(int argc, char **argv){
   SimpleBlobDetector::Params paramsCalib;
   paramsCalib.minThreshold = 10;
   paramsCalib.maxThreshold = 255;
-  paramsCalib.minDistBetweenBlobs = 50.0f;
+  paramsCalib.minDistBetweenBlobs = 5.0f;
   paramsCalib.filterByInertia = false;
-  paramsCalib.filterByConvexity = true;
+  paramsCalib.filterByConvexity = false;
   paramsCalib.minConvexity = 0.75;
   paramsCalib.maxConvexity = 1.0;
   paramsCalib.filterByColor = false;
-  paramsCalib.filterByCircularity = false;
-  paramsCalib.minCircularity = 0.785;
+  paramsCalib.filterByCircularity = true;
+  paramsCalib.minCircularity = 0.01;
   paramsCalib.maxCircularity = 1.;
   paramsCalib.filterByArea = true;
-  paramsCalib.minArea = 5000.0f;
+  paramsCalib.minArea = 10000.0f;
   paramsCalib.maxArea = 100000.0f;
   SimpleBlobDetector detectorCalib(paramsCalib);
   
@@ -64,8 +64,8 @@ int main(int argc, char **argv){
   camera.grab();
   camera.retrieve(rawImage);
   
-  // Create binary mask of blue regions and store it in blueImage
-  inRange(rawImage, cv::Scalar(0,0,0), cv::Scalar(5,5,5), calibImage);
+  // Create binary mask of dark areas and use it to calibrate.
+  inRange(rawImage, cv::Scalar(0,0,0), cv::Scalar(100,15,15), calibImage);
 
   std::vector<KeyPoint> calibKeyPoints;
   detectorCalib.detect( calibImage, calibKeyPoints);
@@ -75,7 +75,7 @@ int main(int argc, char **argv){
   cv::imwrite("calib.jpg", keyPointsImage);
   cv::imwrite("raw.jpg", rawImage);
   //for(int i = 0; i < calibKeyPoints.size(); i++)
-  //  printf("Center: (%f, %f)", calibKeyPoints[i].pt.x, calibKeyPoints[i].pt.y);
+  //printf("Center: (%f, %f) \t Size:%f\n", calibKeyPoints[i].pt.x, calibKeyPoints[i].pt.y, calibKeyPoints[i].size);
   centerX = calibKeyPoints[0].pt.x;
   centerY = calibKeyPoints[0].pt.y;
 
@@ -134,8 +134,13 @@ int main(int argc, char **argv){
     for(int i = 0; i < keypoints.size(); i++){
       float blobX =  keypoints[i].pt.x;
       float blobY = keypoints[i].pt.y; 
-      
-      float blobBearingLocal = atan2(blobY - centerY, blobX - centerX)*180./M_PI; 
+
+      // Use when forward is to the right in the image
+      //float blobBearingLocal = atan2(blobY - centerY, blobX - centerX)*180./M_PI;
+
+      // Use when forward is down in the image
+      float blobBearingLocal = atan2( -1.*(blobX - centerX), blobY - centerY)*180./M_PI; 
+
       float blobBearingGlobal = blobBearingLocal + currentHeading;
       if(blobBearingGlobal < -180.) blobBearingGlobal += 360.;
       if(blobBearingGlobal > 180.) blobBearingGlobal -= 360.;
