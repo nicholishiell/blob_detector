@@ -107,7 +107,7 @@ int main(int argc, char **argv){
   paramsRobotBeacon.maxCircularity = 1.0;
 
   paramsRobotBeacon.filterByArea = true;
-  paramsRobotBeacon.minArea = 2.0f;
+  paramsRobotBeacon.minArea = 150.0f;
   paramsRobotBeacon.maxArea = 100000.0f;
 
   SimpleBlobDetector detectorRobotBeacon(paramsRobotBeacon);
@@ -119,18 +119,23 @@ int main(int argc, char **argv){
     
     // Create binary mask of blue regions and store it in blueImage
 
-    inRange(rawImage, cv::Scalar(100,100,0), cv::Scalar(255,255,100), blueImage);
-    
+    //inRange(rawImage, cv::Scalar(100,100,0), cv::Scalar(255,255,100), blueImage);
+    inRange(rawImage, cv::Scalar(15,0,0), cv::Scalar(255,50,75), blueImage);
+
     // Detect blobs in blueImage
     std::vector<KeyPoint> keypoints;
     detectorRobotBeacon.detect( blueImage, keypoints);
+
+    for(int i = 0; i < keypoints.size(); i++)
+      printf("Center: (%f, %f) \t Size:%f\n", keypoints[i].pt.x, keypoints[i].pt.y, keypoints[i].size);
     
+
     std_msgs::Float64MultiArray msgGlobal;     
     std_msgs::Float64MultiArray msgLocal;     
     
     msgGlobal.data.resize(keypoints.size()); 
-    msgLocal.data.resize(keypoints.size());
-    
+    msgLocal.data.resize(keypoints.size());  
+ 
     for(int i = 0; i < keypoints.size(); i++){
       float blobX =  keypoints[i].pt.x;
       float blobY = keypoints[i].pt.y; 
