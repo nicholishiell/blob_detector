@@ -22,7 +22,7 @@ int main(int argc, char **argv){
   float centerX = 0.;
   float centerY = 0.;
 
-  ros::init(argc, argv, "basic_float_publisher");
+  ros::init(argc, argv, "blob_detector");
   ros::NodeHandle n;
   ros::Rate loop_rate(20);
   ros::Publisher global_pub = n.advertise<std_msgs::Float64MultiArray>("blobBearings", 1000);
