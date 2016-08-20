@@ -36,6 +36,7 @@ int main(int argc, char **argv){
   cv::Mat blueOpenImage;
   cv::Mat keyPointsImage;
   cv::Mat calibImage;
+  cv::Mat rawImageKeyPoints;
   
   SimpleBlobDetector::Params paramsCalib;
   paramsCalib.minThreshold = 10;
@@ -83,13 +84,16 @@ int main(int argc, char **argv){
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
   // Get ready for robot beacon detection
-  camera.set( CV_CAP_PROP_EXPOSURE, 1.3); // Set shutter speed (1.3 for robot beacons)
+  //camera.set( CV_CAP_PROP_EXPOSURE, 1.3); // Set shutter speed (1.3 for robot beacons)
+
+  camera.set( CV_CAP_PROP_EXPOSURE, 100); // Set shutter speed 100 for passive detect
+  
   if ( !camera.open()) printf("Error opening camera\n");
   bool keepGoing = true;
   int imageCounter = 0;
  
   SimpleBlobDetector::Params paramsRobotBeacon;
-  paramsRobotBeacon.minThreshold = 10;
+  paramsRobotBeacon.minThreshold = 200;
   paramsRobotBeacon.maxThreshold = 255;
   paramsRobotBeacon.minDistBetweenBlobs = 50.0f;
   paramsRobotBeacon.filterByColor = false;
@@ -111,25 +115,32 @@ int main(int argc, char **argv){
   paramsRobotBeacon.maxArea = 100000.0f;
 
   SimpleBlobDetector detectorRobotBeacon(paramsRobotBeacon);
-  
+  bool first = true;
   while (ros::ok() and keepGoing){
     
     camera.grab();
     camera.retrieve(rawImage);
-    
+   
     // Create binary mask of blue regions and store it in blueImage
-
     //inRange(rawImage, cv::Scalar(100,100,0), cv::Scalar(255,255,100), blueImage);
-    inRange(rawImage, cv::Scalar(15,0,0), cv::Scalar(255,50,75), blueImage);
+    //inRange(rawImage, cv::Scalar(15,0,0), cv::Scalar(255,60,75), blueImage);
+    inRange(rawImage, cv::Scalar(115,110,70), cv::Scalar(160,150,110), blueImage);
+    
 
     // Detect blobs in blueImage
     std::vector<KeyPoint> keypoints;
     detectorRobotBeacon.detect( blueImage, keypoints);
 
-    for(int i = 0; i < keypoints.size(); i++)
+    /*for(int i = 0; i < keypoints.size(); i++)
       printf("Center: (%f, %f) \t Size:%f\n", keypoints[i].pt.x, keypoints[i].pt.y, keypoints[i].size);
-    
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 
+    if(first or true){
+      drawKeypoints( rawImage, keypoints, rawImageKeyPoints, Scalar(0,0,255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
+      cv::imwrite("blobDetectTest.jpg", rawImageKeyPoints);
+      first = false;
+    }    
+    getchar();*/
     std_msgs::Float64MultiArray msgGlobal;     
     std_msgs::Float64MultiArray msgLocal;     
     
