@@ -58,6 +58,7 @@ int main(int argc, char **argv){
   
   camera.set( CV_CAP_PROP_EXPOSURE, 100); // Set shutter speed 100 for passive beacons)
   
+
   if ( !camera.open()) printf("Error opening camera\n");
   bool keepGoing = true;
   int imageCounter = 0;
@@ -89,19 +90,21 @@ int main(int argc, char **argv){
     
     camera.grab();
     camera.retrieve(rawImage);
-    
+   
     // Create binary mask of blue regions and store it in blueImage
+
     //inRange(rawImage, cv::Scalar(90,110,70), cv::Scalar(125,140,110), blueImage);
     inRange(rawImage, cv::Scalar(bMin,gMin,rMin), cv::Scalar(bMax,gMax,rMax), blueImage);
     
+
     // Detect blobs in blueImage
     std::vector<KeyPoint> keypoints;
     detectorRobotBeacon.detect( blueImage, keypoints);
 
     /*for(int i = 0; i < keypoints.size(); i++)
       printf("Center: (%f, %f) \t Size:%f\n", keypoints[i].pt.x, keypoints[i].pt.y, keypoints[i].size);
-    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");  
-    
+
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     if(first or true){
       drawKeypoints( rawImage, keypoints, rawImageKeyPoints, Scalar(0,0,255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
       cv::imwrite("blobDetectTest.jpg", rawImageKeyPoints);
