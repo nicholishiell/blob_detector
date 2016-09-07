@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string>
 #include <fstream>
-#include "iostream"
 
 using namespace std;
 using namespace cv;
@@ -55,18 +54,38 @@ int main(int argc, char **argv){
   raspicam::RaspiCam_Cv camera;
   cv::Mat rawImage;
   cv::Mat blueImage;
-  cv::Mat dilateImage;
-  cv::Mat erodeImage;
+  cv::Mat rawImageKeyPoints;
   
-  camera.set( CV_CAP_PROP_EXPOSURE, 50); // Set shutter speed 100 for passive beacons)
+  camera.set( CV_CAP_PROP_EXPOSURE, 100); // Set shutter speed 100 for passive beacons)
   
 
   if ( !camera.open()) printf("Error opening camera\n");
-
   bool keepGoing = true;
   int imageCounter = 0;
-  bool first = true;
+ 
+  SimpleBlobDetector::Params paramsRobotBeacon;
+  paramsRobotBeacon.minThreshold = 200;
+  paramsRobotBeacon.maxThreshold = 255;
+  paramsRobotBeacon.minDistBetweenBlobs = 0.0f;
+  paramsRobotBeacon.filterByColor = false;
 
+  paramsRobotBeacon.filterByInertia = false;
+  paramsRobotBeacon.minInertiaRatio = 0.75;
+  paramsRobotBeacon.maxInertiaRatio = 1.0;
+  
+  paramsRobotBeacon.filterByConvexity = false;
+  paramsRobotBeacon.minConvexity = 0.75;
+  paramsRobotBeacon.maxConvexity = 1.0;
+
+  paramsRobotBeacon.filterByCircularity = false;
+  paramsRobotBeacon.minCircularity = 0.75;
+  paramsRobotBeacon.maxCircularity = 1.0;
+  paramsRobotBeacon.filterByArea = true;
+  paramsRobotBeacon.minArea = 50.0f;
+  paramsRobotBeacon.maxArea = 100000000.0f;
+
+  SimpleBlobDetector detectorRobotBeacon(paramsRobotBeacon);
+  bool first = true;
   while (ros::ok() and keepGoing){
     
     camera.grab();
@@ -74,40 +93,25 @@ int main(int argc, char **argv){
    
     // Create binary mask of blue regions and store it in blueImage  
     inRange(rawImage, cv::Scalar(bMin,gMin,rMin), cv::Scalar(bMax,gMax,rMax), blueImage);
-    cv::imwrite("binaryMaskImage.jpg", blueImage);
-    cv::imwrite("rawImage.jpg", rawImage);
+    
 
-    Mat erodeElement = getStructuringElement(MORPH_RECT, Size( 3, 3 ), Point( 0, 0 ) );
-    Mat dilateElement = getStructuringElement(MORPH_RECT, Size( 10, 10 ), Point( 0, 0 ) );
-    
-    erode(blueImage, erodeImage, erodeElement);
-    dilate(erodeImage, dilateImage, dilateElement);
-    
-    cv::imwrite("dilatedImage.jpg", dilateImage);
-    cv::imwrite("erodeImage.jpg", erodeImage);
-    
-    Canny(blueImage, blueImage, 100, 200, 3);
-    /// Find contours   
-    vector<vector<Point> > contours;
-    vector<Vec4i> hierarchy;
-    RNG rng(12345);
-    findContours( dilateImage, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
-    /// Draw contours
-    Mat contourImage = Mat::zeros( blueImage.size(), CV_8UC3 );
-    for( int i = 0; i< contours.size(); i++ ){
-        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+    // Detect blobs in blueImage
+    std::vector<KeyPoint> keypoints;
+    detectorRobotBeacon.detect( blueImage, keypoints);
 
-	double a=contourArea( contours[i],false); 
-       
-	if(a > 10.){
-	  drawContours( contourImage, contours, i, color, 2, 8, hierarchy, 0, Point() );
-	  printf("area = %f\n", a);
-	}
+    /*for(int i = 0; i < keypoints.size(); i++)
+      printf("Center: (%f, %f) \t Size:%f\n", keypoints[i].pt.x, keypoints[i].pt.y, keypoints[i].size);
+
+    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+    if(first or true){
+      drawKeypoints( rawImage, keypoints, rawImageKeyPoints, Scalar(0,0,255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
+      cv::imwrite("blobDetectTest.jpg", rawImageKeyPoints);
+      first = false;
     }
-    cv::imwrite("contourTest.jpg", contourImage);
-    getchar();
     
-    /*std_msgs::Float64MultiArray msgGlobal;     
+    getchar();*/
+
+    std_msgs::Float64MultiArray msgGlobal;     
     std_msgs::Float64MultiArray msgLocal;     
     
     msgGlobal.data.resize(keypoints.size()); 
@@ -132,11 +136,11 @@ int main(int argc, char **argv){
       msgLocal.data[i] = blobBearingLocal;
       
       //printf("%f\t%f\n", blobBearingGlobal, blobSize);
-      }
+    }
     global_pub.publish(msgGlobal);
     local_pub.publish(msgLocal);
     //printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-    */
+   
     
     ros::spinOnce();
     
