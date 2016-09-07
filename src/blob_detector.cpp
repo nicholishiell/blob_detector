@@ -19,6 +19,24 @@ void CurrentHeadingCallback(const std_msgs::Float64::ConstPtr& msg){
   currentHeading = msg->data;
 }
 
+Point* FindCenteroid( Vector<Point> contour){
+  Point * center = new Point();
+  center->x = 0.;
+  center->y = 0.;
+  
+  for (unsigned int i = 0; i < contour.size(); i++) {
+    center->x += contour[i].x;
+    center->y += contour[i].y;
+  }
+
+  float n = (float)contour.size();
+
+  center->x /= n;
+  center->y /= n;
+  
+  return center;
+}
+
 int main(int argc, char **argv){
   float centerX = 0.;
   float centerY = 0.;
@@ -58,9 +76,8 @@ int main(int argc, char **argv){
   cv::Mat dilateImage;
   cv::Mat erodeImage;
   
-  camera.set( CV_CAP_PROP_EXPOSURE, 50); // Set shutter speed 100 for passive beacons)
-  
-
+  //camera.set( CV_CAP_PROP_EXPOSURE, 10); // Set shutter speed 100 for passive beacons)
+ 
   if ( !camera.open()) printf("Error opening camera\n");
 
   bool keepGoing = true;
@@ -77,16 +94,15 @@ int main(int argc, char **argv){
     cv::imwrite("binaryMaskImage.jpg", blueImage);
     cv::imwrite("rawImage.jpg", rawImage);
 
-    Mat erodeElement = getStructuringElement(MORPH_RECT, Size( 3, 3 ), Point( 0, 0 ) );
-    Mat dilateElement = getStructuringElement(MORPH_RECT, Size( 10, 10 ), Point( 0, 0 ) );
+    Mat erodeElement = getStructuringElement(MORPH_CROSS, Size( 5, 5 ), Point( 0, 0 ) );
+    Mat dilateElement = getStructuringElement(MORPH_RECT, Size( 5, 5 ), Point( 0, 0 ) );
     
     erode(blueImage, erodeImage, erodeElement);
     dilate(erodeImage, dilateImage, dilateElement);
     
     cv::imwrite("dilatedImage.jpg", dilateImage);
     cv::imwrite("erodeImage.jpg", erodeImage);
-    
-    Canny(blueImage, blueImage, 100, 200, 3);
+       
     /// Find contours   
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
@@ -98,10 +114,13 @@ int main(int argc, char **argv){
         Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
 
 	double a=contourArea( contours[i],false); 
-       
-	if(a > 10.){
+	Point * center = FindCenteroid(contours[i]);
+	
+	if(a > 100.){
 	  drawContours( contourImage, contours, i, color, 2, 8, hierarchy, 0, Point() );
-	  printf("area = %f\n", a);
+	  float cx = center->x-centerX;
+	  float cy = center->y-centerY;
+	  printf("area = %f (x,y) = (%f, %f) dist = %f\n", a, cx, cy, sqrt(cx*cx+cy*cy));
 	}
     }
     cv::imwrite("contourTest.jpg", contourImage);
