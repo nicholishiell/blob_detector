@@ -1,6 +1,11 @@
 #include "ros/ros.h"
+
 #include "std_msgs/Float64MultiArray.h"
 #include "std_msgs/Float64.h"
+
+#include "bupimo_msgs/BlobArray.h"
+#include "bupimo_msgs/Blob.h"
+
 #include "opencv2/opencv.hpp"
 #include <raspicam/raspicam_cv.h>
 #include <raspicam/raspicam.h>
@@ -85,8 +90,8 @@ int main(int argc, char **argv){
   ros::init(argc, argv, "blob_detector");
   ros::NodeHandle n;
   ros::Rate loop_rate(20);
-  ros::Publisher global_pub = n.advertise<std_msgs::Float64MultiArray>("blobBearings", 1000);
-  ros::Publisher local_pub = n.advertise<std_msgs::Float64MultiArray>("blobBearingsLocal", 1000);
+  ros::Publisher global_pub = n.advertise<bupimo_msgs::BlobArray>("blobsGlobal", 1000);
+  ros::Publisher local_pub = n.advertise<bupimo_msgs::BlobArray>("blobsLocal", 1000);
 
   ros::Subscriber currentHeadingSub = n.subscribe("currentHeading", 1000, CurrentHeadingCallback);
 
@@ -99,8 +104,8 @@ int main(int argc, char **argv){
   cv::Mat erodeElement = getStructuringElement(MORPH_CROSS, Size( 5, 5 ), Point( 0, 0 ) );
   cv::Mat dilateElement = getStructuringElement(MORPH_RECT, Size( 9, 9 ), Point( 0, 0 ) );
 
-  std_msgs::Float64MultiArray msgGlobal;     
-  std_msgs::Float64MultiArray msgLocal;     
+  bupimo_msgs::BlobArray msgGlobal;     
+  bupimo_msgs::BlobArray msgLocal;     
 
   //camera.set( CV_CAP_PROP_EXPOSURE, 10); // Set shutter speed 
  
@@ -139,9 +144,13 @@ int main(int argc, char **argv){
     for( int i = 0; i< contours.size(); i++ ){
       
 	double area =contourArea( contours[i],false); 
+
 	Point * center = FindCenteroid(contours[i]);
+	float cx = center->x - roi_center_x;
+	float cy = center->y - roi_center_y;
+	float dist = sqrt(cx*cx+cy*cy);
 	
-	if(area > 100.){
+	if(area > 100. and dist > 150.){
 
 	  float cx = center->x - roi_center_x;
 	  float cy = center->y - roi_center_y;
@@ -154,19 +163,32 @@ int main(int argc, char **argv){
 	  if(blobBearingGlobal < -180.) blobBearingGlobal += 360.;
 	  if(blobBearingGlobal > 180.) blobBearingGlobal -= 360.;
 
-	  msgGlobal.data.push_back(blobBearingGlobal);
-	  msgLocal.data.push_back(blobBearingLocal); 
+	  bupimo_msgs::Blob aBlobGlobal;
+	  bupimo_msgs::Blob aBlobLocal;
 
+	  aBlobGlobal.bearing = blobBearingGlobal;
+	  aBlobGlobal.size = area;
+	  aBlobGlobal.x = cx;
+	  aBlobGlobal.y = cy;
+
+	  aBlobLocal.bearing = blobBearingLocal;
+	  aBlobLocal.size = area;
+	  aBlobLocal.x = cx;
+	  aBlobLocal.y = cy;
+	  
+	  msgGlobal.blobArray.push_back(aBlobGlobal);
+	  msgLocal.blobArray.push_back(aBlobLocal);
+	  
 	  //drawContours( contourImage, contours, i, Scalar(0,0,255), 2, 8, hierarchy, 0, Point() );
-	  //printf("area = %f (x,y) = (%f, %f) dist = %f\n", a, cx, cy, sqrt(cx*cx+cy*cy));
+	  //printf("area = %f (x,y) = (%f, %f) dist = %f\n", area, cx, cy, dist);
 	}
     }
     
     global_pub.publish(msgGlobal);
     local_pub.publish(msgLocal);
 
-    msgGlobal.data.clear();
-    msgLocal.data.clear();
+    msgGlobal.blobArray.clear();
+    msgLocal.blobArray.clear();
 
     //cv::imwrite("contourTest.jpg", contourImage);
     //getchar();
