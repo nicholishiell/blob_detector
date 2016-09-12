@@ -19,6 +19,8 @@ using namespace std;
 using namespace cv;
 
 float currentHeading = 0.;
+bool DEBUG = false;
+
 
 class BGR_Ranges{
 public:
@@ -124,23 +126,25 @@ int main(int argc, char **argv){
     inRange(rawImage, cv::Scalar(filter2.bMin,filter2.gMin,filter2.rMin), cv::Scalar(filter2.bMax,filter2.gMax,filter2.rMax), bin2);
     blueImage = bin1 + bin2;
 
-    //cv::imwrite("binaryMaskImage.jpg", blueImage);
-    //cv::imwrite("rawImage.jpg", rawImage);
+    
     
     erode(blueImage, erodeImage, erodeElement);
     dilate(erodeImage, dilateImage, dilateElement);
+
+    if(DEBUG){
+      cv::imwrite("binaryMaskImage.jpg", blueImage);
+      cv::imwrite("rawImage.jpg", rawImage);
+      cv::imwrite("dilatedImage.jpg", dilateImage);
+      cv::imwrite("erodeImage.jpg", erodeImage);
+    }
     
-    //cv::imwrite("dilatedImage.jpg", dilateImage);
-    //cv::imwrite("erodeImage.jpg", erodeImage);
-       
     /// Find contours   
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
     
     findContours( dilateImage, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
-
-    /// Draw contours
-    //Mat contourImage = Mat::zeros( blueImage.size(), CV_8UC3 );
+    Mat contourImage = Mat::zeros( blueImage.size(), CV_8UC3 );
+    
     for( int i = 0; i< contours.size(); i++ ){
       
 	double area =contourArea( contours[i],false); 
@@ -179,8 +183,8 @@ int main(int argc, char **argv){
 	  msgGlobal.blobArray.push_back(aBlobGlobal);
 	  msgLocal.blobArray.push_back(aBlobLocal);
 	  
-	  //drawContours( contourImage, contours, i, Scalar(0,0,255), 2, 8, hierarchy, 0, Point() );
-	  //printf("area = %f (x,y) = (%f, %f) dist = %f\n", area, cx, cy, dist);
+	  drawContours( contourImage, contours, i, Scalar(0,0,255), 2, 8, hierarchy, 0, Point() );
+	  if(DEBUG) printf("area = %f (x,y) = (%f, %f) dist = %f\n", area, cx, cy, dist);
 	}
     }
     
@@ -190,9 +194,11 @@ int main(int argc, char **argv){
     msgGlobal.blobArray.clear();
     msgLocal.blobArray.clear();
 
-    //cv::imwrite("contourTest.jpg", contourImage);
-    //getchar();
-            
+    if(DEBUG){
+      cv::imwrite("contourTest.jpg", contourImage);
+      getchar();
+    }
+    
     ros::spinOnce();
     
     loop_rate.sleep();
